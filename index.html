@@ -116,8 +116,8 @@ function diagnose(url) {
 async function loadFFmpeg() {
   if (loaded) return;
   const v = '0.12.6', pkg = isolated ? 'core-mt' : 'core';
-  const jsd = `https://cdn.jsdelivr.net/npm/@ffmpeg/${pkg}@${v}/dist/umd`;
-  const unp = `https://unpkg.com/@ffmpeg/${pkg}@${v}/dist/umd`;
+  const jsd = `https://cdn.jsdelivr.net/npm/@ffmpeg/${pkg}@${v}/dist/esm`;
+  const unp = `https://unpkg.com/@ffmpeg/${pkg}@${v}/dist/esm`;
   const workerSrc = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js';
   const blobCfg = async (base, direct) => {
     const cfg = {
@@ -153,7 +153,6 @@ async function loadFFmpeg() {
     } catch (e) {
       const m = `${name} → ${errText(e)}`; errs.push(m); logLine('[載入失敗] ' + m);
       try { f.terminate(); } catch {}
-      if (!diagDone) { diagDone = true; logLine('[診斷] ' + await diagnose(`${jsd}/ffmpeg-core.js`)); }
     }
   }
   throw new Error('所有載入方式都失敗：' + errs.join('；'));
