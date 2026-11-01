@@ -1,289 +1,325 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LocalConvert</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<meta name="theme-color" content="#112b46">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#122c48">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="字幕燒錄">
+<title>字幕燒錄工具｜瀏覽器端 MKV/MP4 轉檔</title>
+<script src="coi-serviceworker.js"></script>
+<script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js" crossorigin="anonymous"></script>
 <style>
-:root{--bg:#f3f5f2;--fg:#17211b;--mut:#5d6b62;--card:#fff;--line:#cfd8d1;--ac:#0e7c5a;--acfg:#fff;--err:#b3261e}
-@media(prefers-color-scheme:dark){:root{--bg:#121a15;--fg:#e6efe8;--mut:#93a499;--card:#1a251e;--line:#2f4036;--ac:#3fcf9b;--acfg:#06241a;--err:#ff8a80}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 "Noto Sans TC",system-ui,-apple-system,sans-serif;padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px)}
-main{max-width:640px;margin:0 auto}
-h1{font-size:1.9rem;margin:28px 0 4px;letter-spacing:.02em}
-p.s{color:var(--mut);margin:0 0 20px}
-#drop{display:block;border:2px dashed var(--ac);border-radius:14px;padding:30px 16px;text-align:center;cursor:pointer;background:var(--card)}
-#drop.on{background:color-mix(in srgb,var(--ac) 12%,var(--card))}
-#drop b{display:block;font-size:1.1rem}
-#drop span{color:var(--mut);font-size:.9rem}
-input[type=file]{display:none}
-.row{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap}
-select,button{font:inherit;padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
-select{flex:1;min-width:150px}
-button.go{background:var(--ac);color:var(--acfg);border-color:var(--ac);font-weight:700}
-button:disabled{opacity:.5}
-button:focus-visible,select:focus-visible,#drop:focus-within{outline:3px solid var(--ac);outline-offset:2px}
-ul{list-style:none;padding:0;margin:0}
-li{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
-.n{word-break:break-all;font-weight:600}
-.m{color:var(--mut);font-size:.85rem}
-.bar{height:6px;background:var(--line);border-radius:3px;margin:8px 0 4px;overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:var(--ac)}
-a.dl{color:var(--ac);font-weight:700}
-.err{color:var(--err)}
-details{margin-top:22px;color:var(--mut);font-size:.9rem}
+  body{background:#eef1f4;color:#17212b;font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+  .card{background:#fff;border:1px solid #d5dbe2;border-radius:14px;padding:1.25rem}
+  .btn{background:#1d4e89;color:#fff;border-radius:10px;padding:.8rem 1.4rem;font-weight:600}
+  .btn:disabled{background:#9aa8b8}
+  .field{width:100%;border:1px solid #c3ccd6;border-radius:8px;padding:.6rem;background:#fff}
+  .field:focus-visible,.btn:focus-visible{outline:3px solid #f0a020;outline-offset:2px}
 </style>
 </head>
-<body>
-<main>
-<h1>LocalConvert</h1>
-<p class="s">檔案只在你的裝置上處理，不會上傳。支援影片、音訊、圖片、PDF、Word、Excel、Markdown 等。</p>
+<body class="min-h-screen">
+<main class="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+  <header>
+    <h1 class="text-2xl font-bold">字幕燒錄工具</h1>
+    <p class="text-sm text-slate-600">全程在瀏覽器內以 FFmpeg.wasm 處理，影片不會上傳到任何伺服器。</p>
+    <p id="env" class="text-xs mt-1"></p>
+    <p class="text-xs text-slate-400">版本 v4-esm</p>
+  </header>
 
-<label id="drop"><input id="f" type="file" multiple><b>點擊選擇檔案，或拖曳到這裡</b><span>可一次選多個，會依序轉換</span></label>
+  <section class="card space-y-3">
+    <h2 class="font-semibold">步驟 1：選擇影片</h2>
+    <input id="video" type="file" accept=".mkv,.mp4,.mov,video/*" class="field">
+    <p id="vinfo" class="text-sm text-slate-600"></p>
+  </section>
 
-<div class="row">
-<select id="fmt" aria-label="目標格式">
-<optgroup label="影片"><option>mp4</option><option>webm</option><option>mkv</option><option>mov</option><option>avi</option><option>flv</option><option>wmv</option><option>mpg</option><option>ogv</option><option>m4v</option><option>gif</option></optgroup>
-<optgroup label="音訊（也可從影片擷取）"><option>mp3</option><option>wav</option><option>ogg</option><option>flac</option><option>m4a</option><option>aac</option><option>wma</option><option>aiff</option><option>ac3</option></optgroup>
-<optgroup label="圖片（PDF 可轉成每頁一張）"><option>png</option><option>jpg</option><option>webp</option><option>avif</option><option>bmp</option><option>tiff</option><option>tga</option><option>ico</option></optgroup>
-<optgroup label="文件"><option>pdf</option><option>txt</option><option>html</option><option>doc</option></optgroup>
-<optgroup label="表格與資料"><option>xlsx</option><option>xls</option><option>ods</option><option>csv</option><option>tsv</option><option>json</option><option>xml</option><option>yaml</option></optgroup>
-<optgroup label="其他"><option>zip</option><option>base64</option></optgroup>
-</select>
-<button class="go" id="go" disabled>開始轉換</button>
-<button id="clr">清空</button>
-</div>
+  <section class="card space-y-3">
+    <h2 class="font-semibold">步驟 2：字幕設定</h2>
+    <div class="flex gap-4 text-sm">
+      <label><input type="radio" name="src" value="embedded" checked> 影片內建字幕軌</label>
+      <label><input type="radio" name="src" value="external"> 外部 .srt 檔</label>
+      <label><input type="radio" name="src" value="none"> 不燒錄字幕</label>
+    </div>
+    <div id="boxEmb">
+      <select id="track" class="field" disabled><option>請先選擇影片</option></select>
+      <p class="text-xs text-slate-500 mt-1">文字字幕（SRT/ASS）直接燒錄；圖像字幕（PGS/DVD）以疊加方式燒錄。</p>
+    </div>
+    <div id="boxExt" class="hidden"><input id="srt" type="file" accept=".srt" class="field"></div>
+  </section>
 
-<ul id="list"></ul>
+  <section class="card space-y-3">
+    <h2 class="font-semibold">步驟 3：輸出設定</h2>
+    <div class="grid sm:grid-cols-3 gap-3">
+      <label class="text-sm">解析度
+        <select id="res" class="field"><option value="720">720p</option><option value="1080" selected>1080p</option><option value="0">原始大小</option></select></label>
+      <label class="text-sm">影像碼率 (kbps)
+        <input id="vbr" type="number" min="300" step="100" value="5000" class="field"></label>
+      <label class="text-sm">編碼速度
+        <select id="preset" class="field"><option value="ultrafast" selected>最快（檔案較大）</option><option value="veryfast">較快</option><option value="medium">較慢（檔案較小）</option></select></label>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-3 items-end">
+      <label class="text-sm">字幕大小（佔影片高度 %）
+        <input id="fsz" type="number" min="2" max="15" step="0.1" value="5.8" class="field"></label>
+      <div class="flex gap-2 text-sm">
+        <button type="button" class="field !w-auto" onclick="fsz.value=4.5">小 4.5</button>
+        <button type="button" class="field !w-auto" onclick="fsz.value=5.8">中 5.8（≈HandBrake）</button>
+        <button type="button" class="field !w-auto" onclick="fsz.value=7">大 7</button>
+      </div>
+      <label class="text-sm">外框粗細（0＝無，預設 1.2）
+        <input id="fol" type="number" min="0" max="4" step="0.1" value="1.2" class="field"></label>
+      <label class="text-sm"><input id="fass" type="checkbox"> 也套用到 ASS 字幕（覆寫內建樣式）</label>
+    </div>
+    <p class="text-xs text-slate-500">數值越大字越大；5.8 約等於 HandBrake 預設的大小。ASS 字幕預設保留原作者設定的大小。</p>
+  </section>
 
-<details><summary>關於大檔案與手機</summary>
-<p>PDF、Word、Excel 等元件會在第一次使用時才下載。文字轉 PDF 會把內容畫成圖片頁（支援中文，但文字無法選取）。轉換時會自動保持螢幕不熄滅，並在離開頁面前提醒。瀏覽器沒有檔案大小限制，但音訊／影片轉檔需把檔案放進記憶體，實際上限取決於裝置（約 1–2 GB，手機通常更低）。太大的檔案被系統強制關閉頁面時，網頁端無法阻止，建議在電腦上處理。</p></details>
+  <section class="card space-y-3">
+    <button id="go" class="btn w-full" disabled>開始轉換</button>
+    <div class="flex items-center gap-3">
+      <div class="flex-1 h-3 rounded-full bg-slate-200 overflow-hidden"><div id="bar" class="h-full bg-amber-500" style="width:0%"></div></div>
+      <span id="pct" class="text-sm tabular-nums w-14 text-right">0%</span>
+    </div>
+    <p id="status" class="text-sm text-slate-600">等待影片…</p>
+    <pre id="log" class="text-xs bg-slate-900 text-slate-100 rounded-lg p-3 h-44 overflow-auto whitespace-pre-wrap"></pre>
+  </section>
+
+  <section id="done" class="card space-y-3 hidden">
+    <h2 class="font-semibold">完成</h2>
+    <video id="player" controls playsinline class="w-full rounded-lg bg-black"></video>
+    <a id="dl" class="btn inline-block text-center" download="output.mp4">下載 MP4</a>
+  </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
 <script>
-const $=id=>document.getElementById(id);
-const AV={
- mp4:['-c:v','libx264','-preset','veryfast','-crf','26','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart'],
- mov:['-c:v','libx264','-preset','veryfast','-crf','26','-pix_fmt','yuv420p','-c:a','aac'],
- mkv:['-c:v','libx264','-preset','veryfast','-crf','26','-pix_fmt','yuv420p','-c:a','aac'],
- webm:['-c:v','libvpx','-b:v','1M','-c:a','libvorbis'],
- avi:['-c:v','mpeg4','-q:v','5','-c:a','libmp3lame'],
- gif:['-vf','fps=12,scale=480:-1:flags=lanczos','-loop','0'],
- mp3:['-vn','-c:a','libmp3lame','-q:a','2'],wav:['-vn'],flac:['-vn'],
- ogg:['-vn','-c:a','libvorbis'],m4a:['-vn','-c:a','aac'],aac:['-vn','-c:a','aac'],
- flv:['-c:v','flv','-c:a','libmp3lame','-ar','44100'],wmv:['-c:v','wmv2','-c:a','wmav2'],
- mpg:['-c:v','mpeg2video','-q:v','4','-c:a','mp2'],ogv:['-c:v','libtheora','-q:v','6','-c:a','libvorbis'],
- m4v:['-c:v','libx264','-preset','veryfast','-crf','26','-pix_fmt','yuv420p','-c:a','aac'],
- wma:['-vn','-c:a','wmav2'],aiff:['-vn'],ac3:['-vn','-c:a','ac3'],
- bmp:[],tiff:[],tga:[],ico:['-vf','scale=256:256:force_original_aspect_ratio=decrease']
-};
-const CANVAS={png:'image/png',jpg:'image/jpeg',webp:'image/webp',avif:'image/avif'};
-let items=[],ff=null,busy=false,lock=null;
+const { FFmpeg } = FFmpegWASM;
+const { toBlobURL } = FFmpegUtil;
+const $ = (id) => document.getElementById(id);
+const errText = (e) => (e && (e.message || e.toString())) || String(e);
+let ffmpeg = null;
+let loaded = false, mounted = false, videoFile = null, tracks = [], logSink = null;
+const FONT_URL = 'https://cdn.jsdelivr.net/gh/notofonts/noto-cjk@main/Sans/SubsetOTF/TC/NotoSansTC-Regular.otf';
 
-const size=n=>n>1e9?(n/1e9).toFixed(2)+' GB':n>1e6?(n/1e6).toFixed(1)+' MB':(n/1e3|0)+' KB';
-const ext=n=>(n.split('.').pop()||'').toLowerCase();
+const isolated = window.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined';
+$('env').textContent = isolated ? '✔ 多執行緒已啟用' : '⚠ 尚未啟用多執行緒（首次載入後請重新整理一次），將使用單執行緒模式';
 
-function add(files){
- for(const file of files){
-  const li=document.createElement('li');
-  li.innerHTML='<div class="n"></div><div class="m"></div><div class="bar"><i></i></div><div class="st m">等待中</div>';
-  li.querySelector('.n').textContent=file.name;
-  li.querySelector('.m').textContent=size(file.size);
-  $('list').append(li);
-  items.push({file,li,done:false});
- }
- $('go').disabled=!items.length;
+function makeFFmpeg() {
+  const f = new FFmpeg();
+  f.on('log', ({ message }) => {
+    if (logSink) logSink.push(message);
+    const l = $('log'); l.textContent += message + '\n'; l.scrollTop = l.scrollHeight;
+  });
+  f.on('progress', ({ progress }) => {
+    const p = Math.max(0, Math.min(100, Math.round(progress * 100)));
+    $('bar').style.width = p + '%'; $('pct').textContent = p + '%';
+  });
+  return f;
 }
-$('f').onchange=e=>{add(e.target.files);e.target.value=''};
-const d=$('drop');
-['dragover','dragenter'].forEach(t=>d.addEventListener(t,e=>{e.preventDefault();d.classList.add('on')}));
-['dragleave','drop'].forEach(t=>d.addEventListener(t,e=>{e.preventDefault();d.classList.remove('on')}));
-d.addEventListener('drop',e=>add(e.dataTransfer.files));
-$('clr').onclick=()=>{if(busy)return;items.forEach(i=>i.url&&URL.revokeObjectURL(i.url));items=[];$('list').innerHTML='';$('go').disabled=true};
+const logLine = (t) => { const l = $('log'); l.textContent += t + '\n'; l.scrollTop = l.scrollHeight; };
 
-addEventListener('beforeunload',e=>{if(busy){e.preventDefault();e.returnValue=''}});
-async function keepAwake(){try{if('wakeLock' in navigator)lock=await Promise.race([navigator.wakeLock.request('screen'),new Promise((_,r)=>setTimeout(r,1500))])}catch(_){}}
-document.addEventListener('visibilitychange',()=>{if(busy&&document.visibilityState==='visible')keepAwake()});
-
-async function loadFF(set){
- if(ff)return ff;
- if(!window.FFmpeg)throw new Error('無法載入轉檔引擎，請檢查網路連線');
- ff=FFmpeg.createFFmpeg({log:false,corePath:'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js'});
- await ff.load();
- return ff;
+let diagDone = false;
+// 在一個最小的 blob worker 內直接 importScripts，取得真正的失敗原因
+function diagnose(url) {
+  return new Promise((res) => {
+    const code = `try{importScripts(${JSON.stringify(url)});postMessage('importScripts 成功，createFFmpegCore='+typeof createFFmpegCore)}catch(e){postMessage('importScripts 失敗：'+e.name+': '+e.message)}`;
+    let w; const t = setTimeout(() => { try { w.terminate(); } catch {} res('診斷逾時'); }, 20000);
+    try {
+      w = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+      w.onmessage = (e) => { clearTimeout(t); w.terminate(); res(e.data); };
+      w.onerror = (e) => { clearTimeout(t); w.terminate(); res('worker 錯誤：' + (e.message || '未知')); };
+    } catch (e) { clearTimeout(t); res('無法建立 blob worker：' + errText(e)); }
+  });
 }
-
-const L={},CDN='https://cdn.jsdelivr.net/npm/';
-const lib=u=>L[u]||(L[u]=new Promise((ok,no)=>{const e=document.createElement('script');e.src=u;e.onload=ok;e.onerror=()=>no(new Error('無法載入元件，請檢查網路'));document.head.append(e)}));
-const LIBS={xlsx:'xlsx@0.18.5/dist/xlsx.full.min.js',jspdf:'jspdf@2.5.1/dist/jspdf.umd.min.js',zip:'jszip@3.10.1/dist/jszip.min.js',mammoth:'mammoth@1.6.0/mammoth.browser.min.js',marked:'marked@4.3.0/marked.min.js',pdfjs:'pdfjs-dist@3.11.174/build/pdf.min.js'};
-async function need(k){
- await lib(CDN+LIBS[k]);
- if(k==='pdfjs'&&!need.w){const t=await(await fetch(CDN+'pdfjs-dist@3.11.174/build/pdf.worker.min.js')).text();pdfjsLib.GlobalWorkerOptions.workerSrc=need.w=URL.createObjectURL(new Blob([t],{type:'text/javascript'}))}
-}
-const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-async function imgToCanvas(file,white){
- let src;
- try{src=await createImageBitmap(file)}catch(_){
-  const u=URL.createObjectURL(file),im=new Image();im.src=u;await im.decode();src=im;
-  src.width=im.naturalWidth||1024;src.height=im.naturalHeight||1024;
- }
- const c=document.createElement('canvas');c.width=src.width;c.height=src.height;
- const x=c.getContext('2d');
- if(white){x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height)}
- x.drawImage(src,0,0,c.width,c.height);src.close&&src.close();
- return c;
-}
-async function canvasBlob(c,mime){
- const b=await new Promise(r=>c.toBlob(r,mime,.92));
- c.width=c.height=0;
- if(!b||b.type!==mime)throw new Error('此瀏覽器不支援輸出該格式');
- return b;
-}
-async function pack(bl,f,t){
- if(bl.length===1)return bl[0];
- await need('zip');const z=new JSZip(),b=f.name.replace(/\.[^.]+$/,'');
- bl.forEach((x,i)=>z.file(b+'-'+(i+1)+'.'+t,x));
- const r=await z.generateAsync({type:'blob'});r.zipped=1;return r;
-}
-async function pdfDoc(f){await need('pdfjs');return pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise}
-async function pdfImgs(f,mime,prog){
- const d=await pdfDoc(f),out=[];
- for(let i=1;i<=d.numPages;i++){
-  const p=await d.getPage(i),v=p.getViewport({scale:2}),c=document.createElement('canvas');
-  c.width=v.width;c.height=v.height;const x=c.getContext('2d');
-  x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
-  await p.render({canvasContext:x,viewport:v}).promise;
-  out.push(await canvasBlob(c,mime));prog(i/d.numPages);
- }
- return out;
-}
-async function pdfText(f){
- const d=await pdfDoc(f);let s='';
- for(let i=1;i<=d.numPages;i++){const t=await(await d.getPage(i)).getTextContent();s+=t.items.map(x=>x.str+(x.hasEOL?'\n':'')).join('')+'\n\n'}
- return s;
-}
-const SH={xlsx:1,xls:1,ods:1,csv:1,tsv:1,json:1,xml:1,yaml:1};
-const SHIN=['xlsx','xls','xlsm','xlsb','ods','fods','csv','tsv','json'];
-async function sheetWB(f){
- await need('xlsx');const e=ext(f.name),wb=XLSX.utils.book_new();
- if(e==='json'){let j=JSON.parse(await f.text());if(!Array.isArray(j))j=[j];XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(j),'Sheet1');return wb}
- return ['csv','tsv','html','htm'].includes(e)?XLSX.read(await f.text(),{type:'string'}):XLSX.read(await f.arrayBuffer());
-}
-async function sheetOut(f,t){
- const wb=await sheetWB(f),ws=wb.Sheets[wb.SheetNames[0]];
- if(['xlsx','xls','ods'].includes(t))return new Blob([XLSX.write(wb,{bookType:t,type:'array'})]);
- if(t==='csv')return new Blob(['\ufeff'+XLSX.utils.sheet_to_csv(ws)],{type:'text/csv'});
- if(t==='tsv')return new Blob(['\ufeff'+XLSX.utils.sheet_to_csv(ws,{FS:'\t'})]);
- const o=XLSX.utils.sheet_to_json(ws);
- if(t==='json')return new Blob([JSON.stringify(o,null,2)],{type:'application/json'});
- if(t==='xml')return new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n<rows>\n'+o.map(r=>'  <row>'+Object.entries(r).map(([k,v])=>{k=k.replace(/[^\w.-]/g,'_');if(/^[\d.-]/.test(k))k='_'+k;return '<'+k+'>'+esc(v)+'</'+k+'>'}).join('')+'</row>').join('\n')+'\n</rows>']);
- return new Blob([o.map(r=>Object.entries(r).map(([k,v],i)=>(i?'  ':'- ')+JSON.stringify(k)+': '+JSON.stringify(v)).join('\n')).join('\n')]);
-}
-async function toText(f){
- const e=ext(f.name);
- if(e==='pdf')return pdfText(f);
- if(e==='docx'){await need('mammoth');return(await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value}
- if(SHIN.includes(e)&&!['csv','tsv','json'].includes(e)){const wb=await sheetWB(f);return XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]])}
- const s=await f.text();
- return e==='html'||e==='htm'?new DOMParser().parseFromString(s,'text/html').body.textContent:s;
-}
-async function toHtml(f){
- const e=ext(f.name);
- if(e==='docx'){await need('mammoth');return(await mammoth.convertToHtml({arrayBuffer:await f.arrayBuffer()})).value}
- if(e==='md'||e==='markdown'){await need('marked');return marked.parse(await f.text())}
- if(e==='html'||e==='htm')return f.text();
- if(SHIN.includes(e)){const wb=await sheetWB(f);return XLSX.utils.sheet_to_html(wb.Sheets[wb.SheetNames[0]])}
- return '<pre style="white-space:pre-wrap">'+esc(await toText(f))+'</pre>';
-}
-const wrap=h=>/<html/i.test(h)?h:'<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'+h+'</body></html>';
-function textPdf(text){
- const {jsPDF}=jspdf,pdf=new jsPDF({unit:'pt',format:'a4',compress:true}),W=1240,H=1754,M=90,LH=38;
- const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
- const fresh=()=>{x.fillStyle='#fff';x.fillRect(0,0,W,H);x.fillStyle='#000';x.font='26px "Noto Sans TC",system-ui,sans-serif';x.textBaseline='top'};
- let y=M,first=true;fresh();
- const flush=()=>{if(!first)pdf.addPage();first=false;pdf.addImage(c.toDataURL('image/jpeg',.85),'JPEG',0,0,595.28,841.89);fresh();y=M};
- const put=s=>{if(y+LH>H-M)flush();x.fillText(s,M,y);y+=LH};
- for(const p of text.replace(/\r/g,'').split('\n')){
-  let l='';
-  for(const ch of p){if(x.measureText(l+ch).width>W-2*M){put(l);l=ch}else l+=ch}
-  put(l);
- }
- flush();return pdf.output('blob');
-}
-async function imgPdf(f){
- const c=await imgToCanvas(f,true),{jsPDF}=jspdf;
- const pdf=new jsPDF({orientation:c.width>c.height?'l':'p',unit:'px',format:[c.width,c.height],hotfixes:['px_scaling']});
- pdf.addImage(c.toDataURL('image/jpeg',.92),'JPEG',0,0,c.width,c.height);
- return pdf.output('blob');
-}
-async function run(it,t,prog){
- const f=it.file,e=ext(f.name),img=f.type.startsWith('image/')||e==='svg';
- if(t==='zip'){await need('zip');const z=new JSZip();z.file(f.name,f);return z.generateAsync({type:'blob',compression:'DEFLATE'},m=>prog(m.percent/100))}
- if(t==='base64')return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(new Blob([fr.result.split(',')[1]]));fr.readAsDataURL(f)});
- if(SH[t]){if(!SHIN.includes(e)&&e!=='html'&&e!=='htm')throw new Error('此輸入檔無法轉成表格資料');return sheetOut(f,t)}
- if(t==='pdf'){await need('jspdf');if(e==='pdf')return f;return img?imgPdf(f):textPdf(await toText(f))}
- if(t==='txt')return new Blob([await toText(f)]);
- if(t==='html')return new Blob([wrap(await toHtml(f))],{type:'text/html'});
- if(t==='doc')return new Blob(['\ufeff'+wrap(await toHtml(f))],{type:'application/msword'});
- if(CANVAS[t]){
-  if(e==='pdf')return pack(await pdfImgs(f,CANVAS[t],prog),f,t);
-  if(img)return canvasBlob(await imgToCanvas(f,t==='jpg'),CANVAS[t]);
-  throw new Error('此輸入檔無法轉成圖片');
- }
- if(AV[t]){
-  if(['pdf','docx','doc','xlsx','xls','xlsm','xlsb','ods','fods','csv','tsv','json','txt','md','markdown','html','htm','xml','yaml','yml','zip','rtf'].includes(e))throw new Error('這種檔案不能轉成 '+t+'。請改選其他格式，例如 PDF 可轉成 png、jpg、txt');
-  return viaFF(f,t,prog);
- }
- throw new Error('不支援的組合');
-}
-async function viaFF(file,t,prog){
- if(!ff)prog.msg&&prog.msg('首次使用，下載轉檔引擎中（約 25 MB），請稍候…');
- const f=await loadFF();
- const inName='in.'+(ext(file.name)||'bin'),out='out.'+t;
- f.setProgress(({ratio})=>prog(Math.max(0,Math.min(1,ratio))));
- f.FS('writeFile',inName,new Uint8Array(await file.arrayBuffer()));
- try{
-  await f.run('-i',inName,...AV[t],out);
-  const data=f.FS('readFile',out);
-  return new Blob([data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)]);
- }finally{
-  for(const n of [inName,out]){try{f.FS('unlink',n)}catch(_){}}
- }
+async function loadFFmpeg() {
+  if (loaded) return;
+  const v = '0.12.6', pkg = isolated ? 'core-mt' : 'core';
+  const jsd = `https://cdn.jsdelivr.net/npm/@ffmpeg/${pkg}@${v}/dist/esm`;
+  const unp = `https://unpkg.com/@ffmpeg/${pkg}@${v}/dist/esm`;
+  const workerSrc = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js';
+  const blobCfg = async (base, direct) => {
+    const cfg = {
+      coreURL: direct ? `${base}/ffmpeg-core.js` : await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: direct ? `${base}/ffmpeg-core.wasm` : await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+      classWorkerURL: await toBlobURL(workerSrc, 'text/javascript'),
+    };
+    if (isolated) cfg.workerURL = await toBlobURL(`${base}/ffmpeg-core.worker.js`, 'text/javascript');
+    return cfg;
+  };
+  // 本機備援（單執行緒核心）：先找 ./vendor/，再找網站根目錄
+  const localCfg = (dir) => async () => {
+    const u = (f) => new URL(dir + f, location.href).href;
+    const r = await fetch(u('ffmpeg-core.wasm'), { method: 'HEAD' });
+    if (!r.ok) throw new Error('找不到 ' + u('ffmpeg-core.wasm') + '（HTTP ' + r.status + '）');
+    return { coreURL: u('ffmpeg-core.js'), wasmURL: u('ffmpeg-core.wasm'), classWorkerURL: u('814.ffmpeg.js') };
+  };
+  const strategies = [
+    ['jsDelivr（blob）', () => blobCfg(jsd, false)],
+    ['jsDelivr（直連核心）', () => blobCfg(jsd, true)],
+    ['unpkg（blob）', () => blobCfg(unp, false)],
+    ['本機 ./vendor/', localCfg('vendor/')],
+    ['本機 根目錄', localCfg('')],
+  ];
+  const errs = [];
+  for (const [name, build] of strategies) {
+    $('status').textContent = `載入 FFmpeg 核心（${name}）… 約 30 MB，僅首次`;
+    logLine(`[載入] 嘗試：${name}`);
+    const f = makeFFmpeg();
+    try {
+      await f.load(await build());
+      ffmpeg = f; loaded = true; logLine(`[載入] 成功：${name}`); return;
+    } catch (e) {
+      const m = `${name} → ${errText(e)}`; errs.push(m); logLine('[載入失敗] ' + m);
+      try { f.terminate(); } catch {}
+    }
+  }
+  throw new Error('所有載入方式都失敗：' + errs.join('；'));
 }
 
-async function convert(it,t){
- const st=it.li.querySelector('.st'),bar=it.li.querySelector('.bar i');
- const prog=r=>{bar.style.width=(r*100).toFixed(0)+'%';st.textContent='轉換中 '+(r*100|0)+'%'};
- prog.msg=m=>st.textContent=m;
- st.className='st m';st.textContent='轉換中…';
- try{
-  const b=await run(it,t,prog);
-  bar.style.width='100%';
-  if(it.url)URL.revokeObjectURL(it.url);
-  it.url=URL.createObjectURL(b);
-  const x=b.zipped?'zip':t==='base64'?'b64.txt':t,name=it.file.name.replace(/\.[^.]+$/,'')+'.'+x;
-  st.innerHTML='';
-  const a=document.createElement('a');a.className='dl';a.href=it.url;a.download=name;a.textContent='下載 '+name+'（'+size(b.size)+'）';
-  st.append(a);
- }catch(e){
-  st.className='st err';st.textContent='失敗：'+(e.message||e);
- }
+// 以 WORKERFS 掛載，避免把整個影片複製進記憶體
+async function mountVideo(file) {
+  if (mounted) { try { await ffmpeg.unmount('/in'); } catch {} try { await ffmpeg.deleteDir('/in'); } catch {} }
+  const ext = (file.name.match(/\.[^.]+$/) || ['.mkv'])[0].toLowerCase();
+  try { await ffmpeg.createDir('/in'); } catch {}
+  const ok = await ffmpeg.mount('WORKERFS', { files: [new File([file], 'input' + ext)] }, '/in');
+  if (ok) { mounted = true; return '/in/input' + ext; }
+  // 退而求其次：整檔寫入記憶體（較吃記憶體）
+  $('log').textContent += '[提示] WORKERFS 不可用，改為整檔載入記憶體…\n';
+  await ffmpeg.writeFile('/input' + ext, new Uint8Array(await file.arrayBuffer()));
+  mounted = false;
+  return '/input' + ext;
 }
 
-$('go').onclick=async()=>{
- if(busy)return;
- busy=true;$('go').disabled=true;$('go').textContent='轉換中…';
- await keepAwake();
- const t=$('fmt').value;
- for(const it of items){ if(!it.done||it.t!==t){await convert(it,t);it.done=true;it.t=t} }
- busy=false;$('go').disabled=false;$('go').textContent='開始轉換';
- try{lock&&await lock.release()}catch(_){}
- lock=null;
-};
+let inputPath = '';
+function parseTracks(lines) {
+  const out = []; let cur = null, idx = 0;
+  for (const line of lines) {
+    const m = line.match(/Stream #0:(\d+)(?:\(([^)]*)\))?[^:]*: Subtitle: (\w+)/);
+    if (m) {
+      cur = { stream: +m[1], si: idx++, lang: m[2] || 'und', codec: m[3], title: '' };
+      cur.bitmap = ['hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle', 'xsub'].includes(cur.codec);
+      out.push(cur); continue;
+    }
+    if (/Stream #0:\d+/.test(line)) { cur = null; continue; }
+    const t = line.match(/^\s+title\s*:\s*(.+)$/);
+    if (cur && t) cur.title = t[1].trim();
+  }
+  return out;
+}
+
+$('video').addEventListener('change', async (e) => {
+  videoFile = e.target.files[0]; if (!videoFile) return;
+  $('go').disabled = true; $('done').classList.add('hidden');
+  $('vinfo').textContent = `${videoFile.name}（${(videoFile.size / 1048576).toFixed(1)} MB）`;
+  const sel = $('track'); sel.disabled = true; sel.innerHTML = '<option>解析字幕軌中…</option>';
+  try {
+    await loadFFmpeg();
+    $('status').textContent = '解析影片軌道…';
+    // 軌道資訊在檔案開頭，只取前 48 MB 來探測，速度快且省記憶體
+    const pext = (videoFile.name.match(/\.[^.]+$/) || ['.mkv'])[0].toLowerCase();
+    const probe = '/probe' + pext;
+    await ffmpeg.writeFile(probe, new Uint8Array(await videoFile.slice(0, 48 * 1048576).arrayBuffer()));
+    logSink = [];
+    await ffmpeg.exec(['-hide_banner', '-i', probe]); // 無輸出檔，會回傳錯誤碼，但軌道資訊已寫入日誌
+    try { await ffmpeg.deleteFile(probe); } catch {}
+    tracks = parseTracks(logSink); logSink = null;
+    if (!tracks.length) sel.innerHTML = '<option value="">此影片沒有內建字幕軌</option>';
+    else {
+      sel.innerHTML = tracks.map((t, i) =>
+        `<option value="${i}">Track #0:${t.stream} [${t.lang}] ${t.title ? '· ' + t.title + ' ' : ''}(${t.codec}${t.bitmap ? '，圖像' : ''})</option>`).join('');
+      sel.disabled = false;
+    }
+    $('status').textContent = `已就緒，找到 ${tracks.length} 條字幕軌。`;
+    $('go').disabled = false;
+  } catch (err) {
+    logSink = null; console.error(err); $('log').textContent += '[錯誤] ' + errText(err) + '\n'; $('status').textContent = '解析失敗：' + errText(err);
+  }
+});
+
+document.querySelectorAll('input[name=src]').forEach((r) => r.addEventListener('change', () => {
+  const v = document.querySelector('input[name=src]:checked').value;
+  $('boxEmb').classList.toggle('hidden', v !== 'embedded');
+  $('boxExt').classList.toggle('hidden', v !== 'external');
+}));
+
+async function ensureFont() {
+  try {
+    await ffmpeg.createDir('/fonts');
+    $('status').textContent = '下載中文字型…';
+    await ffmpeg.writeFile('/fonts/NotoSansTC.otf', new Uint8Array(await (await fetch(FONT_URL)).arrayBuffer()));
+    return true;
+  } catch (e) {
+    try { await ffmpeg.listDir('/fonts'); return true; } catch {}
+    $('log').textContent += '[警告] 字型下載失敗，中文可能顯示為方塊。\n'; return false;
+  }
+}
+
+$('go').addEventListener('click', async () => {
+  const src = document.querySelector('input[name=src]:checked').value;
+  const h = +$('res').value, kbps = Math.max(300, +$('vbr').value || 2500);
+  // 純文字字幕以 288 高為基準（libass 預設 PlayResY），換算成 FontSize
+  const fsize = Math.round((Math.max(2, Math.min(15, +$('fsz').value || 5.8)) / 100) * 288 * 10) / 10;
+  const fstyle = `:force_style='FontName=Noto Sans TC,FontSize=${fsize},Outline=${Math.max(0, Math.min(4, isNaN(+$('fol').value) ? 1.2 : +$('fol').value))}'`;
+  const scale = h ? `scale=-2:min(${h}\\,ih)` : null;
+  let args, filter = null, mapV = [];
+  try {
+    $('go').disabled = true; $('done').classList.add('hidden');
+    $('status').textContent = '準備影片…';
+    if (!loaded) await loadFFmpeg(); // 上一次轉換結束後已釋放記憶體，需重新載入核心（有快取，很快）
+    inputPath = await mountVideo(videoFile);
+    args = ['-hide_banner', '-i', inputPath];
+    $('bar').style.width = '0%'; $('pct').textContent = '0%';
+
+    if (src === 'embedded') {
+      const t = tracks[+$('track').value];
+      if (!t) throw new Error('請選擇字幕軌，或改選其他字幕來源。');
+      if (t.bitmap) {
+        args.push('-filter_complex', `[0:v:0][0:s:${t.si}]overlay${scale ? ',' + scale : ''}[v]`);
+        mapV = ['-map', '[v]'];
+      } else {
+        await ensureFont();
+        const isAss = t.codec === 'ass' || t.codec === 'ssa';
+        const style = isAss && !$('fass').checked ? '' : fstyle;
+        filter = `subtitles=${inputPath}:si=${t.si}:fontsdir=/fonts${style}`;
+      }
+    } else if (src === 'external') {
+      const f = $('srt').files[0]; if (!f) throw new Error('請先選擇 .srt 檔案。');
+      await ensureFont();
+      await ffmpeg.writeFile('/sub.srt', new Uint8Array(await f.arrayBuffer()));
+      filter = 'subtitles=/sub.srt:fontsdir=/fonts' + fstyle;
+    }
+    if (filter) args.push('-vf', [filter, scale].filter(Boolean).join(','));
+    else if (!mapV.length && scale) args.push('-vf', scale);
+    if (mapV.length) args.push(...mapV, '-map', '0:a:0?');
+    else args.push('-map', '0:v:0', '-map', '0:a:0?');
+
+    args.push('-c:v', 'libx264', '-preset', $('preset').value, '-b:v', kbps + 'k', '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '-threads', isolated ? '0' : '1', '-y', 'out.mp4');
+
+    $('status').textContent = '轉換中，請保持此頁面在前景…';
+    $('log').textContent += '> ffmpeg ' + args.join(' ') + '\n';
+    const t0 = performance.now();
+    const code = await ffmpeg.exec(args);
+    if (code !== 0) throw new Error('FFmpeg 結束碼 ' + code + '，請查看日誌。');
+    $('status').textContent = '整理輸出檔案…';
+    let data = await ffmpeg.readFile('out.mp4');
+    // 立刻釋放 FFmpeg 的 WASM 記憶體（可達數 GB），否則手機 Safari 可能因記憶體不足而把頁面砍掉重載
+    try { ffmpeg.terminate(); } catch {}
+    ffmpeg = null; loaded = false; mounted = false;
+    const blob = new Blob([data], { type: 'video/mp4' });
+    data = null;
+    const url = URL.createObjectURL(blob);
+    $('player').preload = 'metadata';
+    $('player').src = url; $('dl').href = url;
+    $('dl').download = videoFile.name.replace(/\.[^.]+$/, '') + '_subbed.mp4';
+    $('done').classList.remove('hidden'); $('bar').style.width = '100%'; $('pct').textContent = '100%';
+    $('status').textContent = `完成，耗時 ${((performance.now() - t0) / 1000).toFixed(0)} 秒。`;
+    $('done').scrollIntoView({ behavior: 'smooth' });
+  } catch (err) {
+    console.error(err); $('log').textContent += '[錯誤] ' + errText(err) + '\n'; $('status').textContent = '錯誤：' + errText(err);
+  } finally { $('go').disabled = false; }
+});
 </script>
 </body>
 </html>

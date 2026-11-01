@@ -22,6 +22,9 @@
 .
 ├── index.html              # 主程式（HTML + CSS + JS，使用 Tailwind CDN）
 ├── coi-serviceworker.js    # 補上 COOP/COEP 標頭的 Service Worker
+├── manifest.json           # PWA 設定（可加到主畫面）
+├── icon-192.png            # PWA 圖示
+├── icon-512.png            # PWA 圖示
 ├── vendor/                 # （建議）本機備援的 FFmpeg 核心，見下方說明
 │   ├── ffmpeg-core.js      # 必須是 ESM 版（dist/esm）
 │   ├── ffmpeg-core.wasm
