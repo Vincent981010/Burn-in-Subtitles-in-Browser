@@ -1,0 +1,15 @@
+{
+  "name": "LocalConvert",
+  "short_name": "LocalConvert",
+  "description": "在瀏覽器本機轉換影片、音訊、圖片、PDF、文件與表格，檔案不會上傳。",
+  "lang": "zh-Hant",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#112b46",
+  "theme_color": "#112b46",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
